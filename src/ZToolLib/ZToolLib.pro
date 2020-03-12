@@ -42,6 +42,7 @@ HEADERS += lockfreequeue.h \
     ztl_atomic.h \
     ztl_base64.h \
     ztl_bitset.h \
+    ztl_blocking_queue.h \
     ztl_buffer.h \
     ztl_common.h \
     ztl_config.h \
@@ -49,6 +50,7 @@ HEADERS += lockfreequeue.h \
     ztl_crypt.h \
     ztl_dict.h \
     ztl_dyso.h \
+    ztl_event_dispatcher.h \
     ztl_evtimer.h \
     ztl_evloop.h \
     ztl_evloop_private.h \
@@ -76,18 +78,21 @@ HEADERS += lockfreequeue.h \
     ztl_tcp_server.h \
     ztl_threads.h \
     ztl_unit_test.h \
-    ztl_utils.h 
+    ztl_utils.h \
+    ztl_vector.h 
 
 SOURCES += lockfreequeue.c \
     ztl_aes.c \
     ztl_array.c \
     ztl_base64.c \
+    ztl_blocking_queue.c \
     ztl_buffer.c \
     ztl_config.c \
     ztl_crc.c \
     ztl_crypt.c \
     ztl_dict.c \
     ztl_dyso.c \
+    ztl_event_dispatcher.c \
     ztl_evtimer.c \
     ztl_evloop.c \
     ztl_evloop_epoll.c \
@@ -115,4 +120,5 @@ SOURCES += lockfreequeue.c \
     ztl_threads.c \
     ztl_times.c \
     ztl_unit_test.c \
-    ztl_utils.c 
+    ztl_utils.c \
+    ztl_vector.c 

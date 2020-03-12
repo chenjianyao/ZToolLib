@@ -45,7 +45,8 @@ ztl_array_t* ztl_array_create(ztl_pool_t* pool, uint32_t num, size_t eltsize)
     array->const_obj = 0;
 
     if (_ztl_array_init(array, pool, num, eltsize) != 0) {
-        free(array);
+        if (!pool)
+            free(array);
         return NULL;
     }
 
@@ -278,7 +279,7 @@ void* ztl_array_find(ztl_array_t* arr, void* expect, int(*cmp)(void* expect, voi
     if (!cmp)
         cmp = _ztl_array_cmp;
 
-    void* actual;
+    void* actual = NULL;
 
     for (uint32_t x = 0; x < ztl_array_size(arr); ++x)
     {

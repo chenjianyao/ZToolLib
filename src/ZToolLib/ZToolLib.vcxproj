@@ -162,7 +162,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_CRT_SECURE_NO_WARNINGS;_WINSOCK_DEPRECATED_NO_WARNINGS;ZTL_DEBUG;_DEBUG;ZTL_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -187,6 +187,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_WINSOCK_DEPRECATED_NO_WARNINGS;ZTL_DEBUG;_DEBUG;_LIB;ZTL_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -246,6 +247,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_WINSOCK_DEPRECATED_NO_WARNINGS;ZTL_DEBUG;NDEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -273,7 +275,9 @@
     <Text Include="ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="cJSON.h" />
     <ClInclude Include="ztl_aes.h" />
+    <ClInclude Include="ztl_blocking_queue.h" />
     <ClInclude Include="ztl_crc.h" />
     <ClInclude Include="ztl_crypt.h" />
     <ClInclude Include="ztl_array.h" />
@@ -284,6 +288,7 @@
     <ClInclude Include="ztl_dict.h" />
     <ClInclude Include="ztl_dlist.h" />
     <ClInclude Include="ztl_dyso.h" />
+    <ClInclude Include="ztl_event_dispatcher.h" />
     <ClInclude Include="ztl_evloop.h" />
     <ClInclude Include="ztl_evloop_private.h" />
     <ClInclude Include="ztl_evtimer.h" />
@@ -315,11 +320,14 @@
     <ClInclude Include="ztl_locks.h" />
     <ClInclude Include="ztl_rbtree.h" />
     <ClInclude Include="ztl_map.h" />
+    <ClInclude Include="ztl_vector.h" />
     <ClInclude Include="ztl_win32_stacktrace.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="cJSON.c" />
     <ClCompile Include="siphash.c" />
     <ClCompile Include="ztl_aes.c" />
+    <ClCompile Include="ztl_blocking_queue.c" />
     <ClCompile Include="ztl_crc.c" />
     <ClCompile Include="ztl_crypt.c" />
     <ClCompile Include="ztl_array.c" />
@@ -329,6 +337,7 @@
     <ClCompile Include="ztl_dlist.c" />
     <ClCompile Include="ztl_dyso.c" />
     <ClCompile Include="lockfreequeue.c" />
+    <ClCompile Include="ztl_event_dispatcher.c" />
     <ClCompile Include="ztl_evloop.c" />
     <ClCompile Include="ztl_evloop_epoll.c" />
     <ClCompile Include="ztl_evloop_iocp.c" />
@@ -360,6 +369,7 @@
     <ClCompile Include="ztl_locks.c" />
     <ClCompile Include="ztl_rbtree.c" />
     <ClCompile Include="ztl_map.c" />
+    <ClCompile Include="ztl_vector.c" />
     <ClCompile Include="ztl_win32_stacktrace.c" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
