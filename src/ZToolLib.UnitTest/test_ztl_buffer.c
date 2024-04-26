@@ -58,7 +58,6 @@ static void  _ztl_buffer_dealloc(void* ctx, void* addr)
 
 void Test_ztl_buffer2(ZuTest* zt)
 {
-    char ldata[256] = "";
     ztl_buffer_t zbuf;
     ztl_buffer_init(&zbuf);
 
@@ -72,6 +71,35 @@ void Test_ztl_buffer2(ZuTest* zt)
 
     ZuAssertTrue(zt, 0 == strncmp("123456789", ztl_buffer_data(&zbuf), 9));
     ZuAssertIntEquals(zt, 9, ztl_buffer_size(&zbuf));
+
+    ztl_buffer_clear(&zbuf);
+
+    ztl_buffer_release(&zbuf);
+}
+
+void Test_ztl_buffer3(ZuTest* zt)
+{
+    ztl_buffer_t zbuf;
+    ztl_buffer_init(&zbuf);
+
+    ZuAssertTrue(zt, ztl_buffer_empty(&zbuf));
+
+    ztl_buffer_set_alloc_func(&zbuf, _ztl_buffer_alloc, _ztl_buffer_dealloc, NULL);
+
+    char* buf = "123456789";
+    ztl_buffer_append(&zbuf, buf, 9);
+
+    ztl_buffer_erase(&zbuf,2,5);
+    ztl_buffer_compact(&zbuf);
+    ZuAssertIntEquals(zt, 4, ztl_buffer_size(&zbuf));
+    ZuAssertTrue(zt, 0 == strncmp("1289", ztl_buffer_data(&zbuf), 4));
+
+    ztl_buffer_fill(&zbuf, 2, 1, "34\n67", 5);
+    ZuAssertIntEquals(zt, 9, ztl_buffer_size(&zbuf));
+    ZuAssertTrue(zt, 0 == strncmp("1234\n6789", ztl_buffer_data(&zbuf), 9));
+
+    ztl_buffer_fill(&zbuf, 2, 1, "ab\0de", 5);
+    ZuAssertIntEquals(zt, 14, ztl_buffer_size(&zbuf));
 
     ztl_buffer_clear(&zbuf);
 

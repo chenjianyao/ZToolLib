@@ -5,9 +5,15 @@
 #include <ZToolLib/ztl_unit_test.h>
 #include <ZToolLib/cJSON.h>
 
-#ifndef _WIN32
-#define _strdup strdup
-#endif
+char* my_strdup(const char *s)
+{
+    size_t len = strlen(s) + 1;
+    char* dst = (char*)malloc(len);
+    if (!dst)
+        return NULL;
+    memcpy(dst, s, len);
+    return dst;
+}
 
 void Test_cJSON(ZuTest* zt)
 {
@@ -27,27 +33,16 @@ void Test_cJSON(ZuTest* zt)
 
     cJSON* node;
     json = cJSON_Parse(str);
-
-    node = cJSON_GetObjectItem(json, "family");
-    if (!node)
-    {
-        printf("family node is null\n");
-        return;
-    }
+    ZuAssertTrue(zt, json != NULL);
 
     // verify whether key is string option, return 1 if has, otherwise return 0
-    if (1 == cJSON_HasObjectItem(json, "family")) {
-        printf("found family node\n");
-    }
-    else {
-        printf("not found family node\n");
-    }
+    ZuAssertTrue(zt, cJSON_HasObjectItem(json, "family"));
+    node = cJSON_GetObjectItem(json, "family");
+    ZuAssertPtrNotNull(zt, node);
 
     node = cJSON_GetObjectItem(json, "family");
-    if (node->type == cJSON_Array)
-    {
-        printf("array size is %d\n", cJSON_GetArraySize(node));
-    }
+    ZuAssertTrue(zt, node->type == cJSON_Array);
+    ZuAssertIntEquals(zt, 5, cJSON_GetArraySize(node));
 
     //非array类型的node 被当做array获取size的大小是未定义的行为 不要使用
 
@@ -153,10 +148,10 @@ void parse_account_config(test_json_st* account, cJSON* tnode)
             cJSON* symbolObj = cJSON_GetObjectItem(subitem, "symbol");
 
             if (nameObj) {
-                stg->Name = _strdup(nameObj->valuestring);
+                stg->Name = my_strdup(nameObj->valuestring);
             }
             if (symbolObj) {
-                stg->Symbols = _strdup(symbolObj->valuestring);
+                stg->Symbols = my_strdup(symbolObj->valuestring);
             }
         }
     }
@@ -170,16 +165,17 @@ void Test_cJSON2(ZuTest* zt)
         return;
     }
 
-    int length = 0;
+    // int length = 0;
     char buffer[1024] = "";
     fread(buffer, sizeof(buffer) - 1, 1, fp);
     fclose(fp);
 
     cJSON* json;
     json = cJSON_Parse(buffer);
+    ZuAssertTrue(zt, json != NULL);
 
     int sz = cJSON_GetArraySize(json);
-    printf("sz=%d\n", sz);
+    printf("json arr sz=%d\n", sz);
 
     // result
     test_json_st accounts[8] = { 0 };
@@ -192,7 +188,7 @@ void Test_cJSON2(ZuTest* zt)
         {
             printf("parsing tnode type:%d\n", tnode->type);
 
-            cJSON* object = tnode->child;
+            // cJSON* object = tnode->child;
             parse_account_config(&accounts[index++], tnode);
         }
     }

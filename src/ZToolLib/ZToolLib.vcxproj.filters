@@ -180,6 +180,36 @@
     <ClInclude Include="ztl_vector.h">
       <Filter>Containers</Filter>
     </ClInclude>
+    <ClInclude Include="ztl_memdb.h">
+      <Filter>Memory</Filter>
+    </ClInclude>
+    <ClInclude Include="ztl_dstr.h">
+      <Filter>Containers</Filter>
+    </ClInclude>
+    <ClInclude Include="ztl_mem.h">
+      <Filter>Memory</Filter>
+    </ClInclude>
+    <ClInclude Include="ztl_table.h">
+      <Filter>Containers</Filter>
+    </ClInclude>
+    <ClInclude Include="ztl_ring.h">
+      <Filter>Containers</Filter>
+    </ClInclude>
+    <ClInclude Include="ztl_heap.h">
+      <Filter>Containers</Filter>
+    </ClInclude>
+    <ClInclude Include="ztl_tcp_client.h">
+      <Filter>Network</Filter>
+    </ClInclude>
+    <ClInclude Include="ztl_errors.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ztl_bufcat.h">
+      <Filter>Containers</Filter>
+    </ClInclude>
+    <ClInclude Include="ztl_getopt.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="lockfreequeue.c">
@@ -272,9 +302,6 @@
     <ClCompile Include="ztl_tcp_server.c">
       <Filter>Network</Filter>
     </ClCompile>
-    <ClCompile Include="ztl_times.c">
-      <Filter>Header Files</Filter>
-    </ClCompile>
     <ClCompile Include="ztl_crypt.c">
       <Filter>Crypt</Filter>
     </ClCompile>
@@ -321,6 +348,36 @@
       <Filter>Threads</Filter>
     </ClCompile>
     <ClCompile Include="ztl_vector.c">
+      <Filter>Containers</Filter>
+    </ClCompile>
+    <ClCompile Include="ztl_memdb.c">
+      <Filter>Memory</Filter>
+    </ClCompile>
+    <ClCompile Include="ztl_dstr.c">
+      <Filter>Containers</Filter>
+    </ClCompile>
+    <ClCompile Include="ztl_mem.c">
+      <Filter>Memory</Filter>
+    </ClCompile>
+    <ClCompile Include="ztl_table.c">
+      <Filter>Containers</Filter>
+    </ClCompile>
+    <ClCompile Include="ztl_ring.c">
+      <Filter>Containers</Filter>
+    </ClCompile>
+    <ClCompile Include="ztl_heap.c">
+      <Filter>Containers</Filter>
+    </ClCompile>
+    <ClCompile Include="ztl_times.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ztl_win32_getopt.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ztl_tcp_client.c">
+      <Filter>Network</Filter>
+    </ClCompile>
+    <ClCompile Include="ztl_bufcat.c">
       <Filter>Containers</Filter>
     </ClCompile>
   </ItemGroup>

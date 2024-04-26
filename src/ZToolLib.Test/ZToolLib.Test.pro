@@ -33,13 +33,22 @@ build_pass:CONFIG(debug, debug|release) {
         DESTDIR = ../../build/release
 }
 
-QMAKE_CFLAGS += -std=c99
+# QMAKE_CFLAGS += -std=c99
+# QMAKE_CFLAGS += -std=gnu99
 
 INCLUDEPATH += ../
 
-LIBS += -L$${DESTDIR} -lztoollib$${BuildSuff}
+LIBS += -L$${DESTDIR} -lztoollib$${BuildSuff} -lpthread -lm -lrt -ldl
 
 
 # Input
 HEADERS += 
-SOURCES += ZToolLib.Test.c
+
+SOURCES += ZToolLib.Test.c \
+    event_dispatcher_demo.c \
+    producer_consumer_demo.c \
+    tcp_client_demo.c \
+    tcp_server_demo.c \
+    threadpool_demo.c \
+    trans_md_demo.c \
+    udp_demo.c

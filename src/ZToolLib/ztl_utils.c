@@ -6,6 +6,7 @@
 #include <ctype.h>
 #include <time.h>
 #include <limits.h>
+#include <math.h>
 
 #include "ztl_times.h"
 #include "ztl_utils.h"
@@ -40,26 +41,26 @@ int64_t query_tick_count()
 #endif//_MSC_VER
 }
 
-int32_t tick_to_us(int64_t aTickCountBeg, int64_t aTickCountEnd)
+int32_t tick_to_us(int64_t tick_beg, int64_t tick_end)
 {
 #ifdef _MSC_VER
     LARGE_INTEGER freq;
     QueryPerformanceFrequency(&freq);
-    if (aTickCountEnd == 0)
-        return (int32_t)((double)aTickCountBeg / (double)(freq.QuadPart) * 1000000);
+    if (tick_end == 0)
+        return (int32_t)((double)tick_beg / (double)(freq.QuadPart) * 1000000);
     else
-        return (int32_t)((double)(aTickCountEnd - aTickCountBeg) / (double)(freq.QuadPart) * 1000000);
+        return (int32_t)((double)(tick_end - tick_beg) / (double)(freq.QuadPart) * 1000000);
 #else
-    if (aTickCountEnd == 0)
-        return aTickCountBeg;
-    return aTickCountEnd - aTickCountBeg;
+    if (tick_end == 0)
+        return tick_beg;
+    return tick_end - tick_beg;
 #endif//_MSC_VER
 }
 
 
 /* Return the number of digits of 'v' when converted to string in radix 10.
 * See ll2string() for more information. */
-static uint32_t digits10(uint64_t v)
+uint32_t digits10(uint64_t v)
 {
     if (v < 10) return 1;
     if (v < 100) return 2;
@@ -141,42 +142,40 @@ int ll2string(char* dst, uint32_t dstlen, int64_t svalue)
     return length;
 }
 
-/// convert previous len data to an integer
-int64_t atoi_n(const char* pszData, int len)
+int64_t atoi_n(const char* data, int len)
 {
     int64_t val = 0;
     int isigned = 1;
     int i = 0;
     while (i++ < len) {
-        if (*pszData == ' ') {
-            ++pszData;
+        if (*data == ' ') {
+            ++data;
             continue;
         }
         break;
     }
 
-    if (*pszData == '+') {
+    if (*data == '+') {
         isigned = 1;
         ++i;
-        ++pszData;
+        ++data;
     }
-    else if (*pszData == '-') {
+    else if (*data == '-') {
         isigned = -1;
         ++i;
-        ++pszData;
+        ++data;
     }
 
     while (i++ <= len) {
-        if (!isdigit(*pszData))
+        if (!isdigit(*data))
             break;
 
-        val = (val * 10) + (*pszData - '0');
-        ++pszData;
+        val = (val * 10) + (*data - '0');
+        ++data;
     }
     return val * isigned;
 }
 
-/// print memory by hex
 void print_mem(void* pm, unsigned int size, int nperline)
 {
     FILE* fp = stdout;
@@ -200,7 +199,6 @@ void print_mem(void* pm, unsigned int size, int nperline)
     fprintf(fp, "\n");
 }
 
-/// generate random string
 #if 0
 void random_string(char* buf, int size, bool onlyhexchar)
 {
@@ -283,12 +281,16 @@ void lefttrim(char* buf)
 
     int i;
     int len = (int)strlen(buf);
-    for (i = 0; i < len; ++i) {
+    for (i = 0; i < len; ++i)
+    {
         if (buf[i] != ' ' && buf[i] != '\r' && buf[i] != '\n' && buf[i] != '\t')
             break;
     }
     if (i > 0)
-        strcpy(buf, buf + i);
+    {
+        memmove(buf, buf + i, len - i);
+        buf[len - i] = 0;
+    }
     return;
 }
 
@@ -298,12 +300,40 @@ void righttrim(char* buf)
         return;
 
     int i;
-    for (i = (int)strlen(buf) - 1; i >= 0; --i) {
+    for (i = (int)strlen(buf) - 1; i >= 0; --i)
+    {
         if (buf[i] != ' ' && buf[i] != '\r' && buf[i] != '\n' && buf[i] != '\t')
             break;
         buf[i] = '\0';
     }
     return;
+}
+
+char* remove_char(char* buf, char ch)
+{
+    char* pcur = buf;
+    int w = 0, r = 0;
+    for (; buf[r]; ++r)
+    {
+        if (buf[r] != ch) {
+            buf[w++] = buf[r];
+        }
+    }
+    buf[w] = '\0';
+    return buf;
+}
+
+char* replace_char(char* buf, char old_ch, char new_ch)
+{
+    char* pcur = buf;
+    int w;
+    for (w = 0; buf[w]; ++w)
+    {
+        if (buf[w] == old_ch) {
+            buf[w] = new_ch;
+        }
+    }
+    return buf;
 }
 
 int64_t parse_size(const char* str, int len)
@@ -313,7 +343,8 @@ int64_t parse_size(const char* str, int len)
 
     unit = str[len - 1];
 
-    switch (unit) {
+    switch (unit)
+    {
     case 'K':
     case 'k':
         len--;
@@ -326,6 +357,13 @@ int64_t parse_size(const char* str, int len)
         len--;
         max = INT64_MAX / (1024 * 1024);
         scale = 1024 * 1024;
+        break;
+
+    case 'G':
+    case 'g':
+        len--;
+        max = INT64_MAX / (1024 * 1024 * 1024);
+        scale = 1024 * 1024 * 1024;
         break;
 
     default:
@@ -341,6 +379,18 @@ int64_t parse_size(const char* str, int len)
     size *= scale;
 
     return size;
+}
+
+uint64_t get_next_power(uint64_t n)
+{
+    uint64_t i = 2;
+    for (;;)
+    {
+        if (i >= n)
+            return i;
+        i *= 2;
+    }
+    return i;
 }
 
 int get_cpu_number()
@@ -375,6 +425,100 @@ uint32_t get_file_length(const char* filename)
     return sz;
 }
 
+const char* ztl_basename(const char* filepath)
+{
+    if (!filepath || !filepath[0])
+        return NULL;
+
+    int len0 = (int)strlen(filepath);
+    int len = len0;
+    while (len > 0)
+    {
+        char ch = filepath[len - 1];
+        if (ch == '/' || ch == '\\')
+            break;
+        len -= 1;
+    }
+    return filepath + len;
+}
+
+int ztl_dirname(char dirname[], int size, const char* filepath)
+{
+    if (!dirname || size <= 0 || !filepath || !filepath[0])
+        return -1;
+
+    int len = (int)strlen(filepath);
+    while (len > 0)
+    {
+        char ch = filepath[len - 1];
+        if (ch == '/' || ch == '\\')
+        {
+            len -= 1;
+            while (len > 0)
+            {
+                ch = filepath[len - 1];
+                if (ch == '/' || ch == '\\')
+                    len -= 1;
+                else
+                    break;
+            }
+            break;
+        }
+        len -= 1;
+    }
+
+    size = ztl_min(size, len);
+    strncpy(dirname, filepath, size);
+    dirname[size] = '\0';
+    return size;
+}
+
+
+bool ztl_startwith(const char* str, const char* needle)
+{
+    return strncmp(str, needle, strlen(needle)) == 0 ? true : false;
+}
+
+bool ztl_endwith(const char* str, const char* needle)
+{
+    size_t len0 = strlen(str);
+    size_t len1 = strlen(needle);
+    if (len0 < len1)
+        return false;
+    return strncmp(str + len0 - len1, needle, len1) == 0 ? true : false;
+}
+
+bool ztl_startswith(const char* str, char* needles[], int count)
+{
+    for (int i = 0; i < count; ++i)
+    {
+        if (!needles[i])
+            break;
+        if (strncmp(str, needles[i], strlen(needles[i])) == 0)
+            return true;
+    }
+    return false;
+}
+
+bool ztl_endswith(const char* str, char* needles[], int count)
+{
+    size_t len0 = strlen(str);
+    for (int i = 0; i < count; ++i)
+    {
+        if (!needles[i])
+            break;
+
+        size_t len1 = strlen(needles[i]);
+        if (len1 > len0)
+            continue;
+
+        if (strncmp(str + len0 - len1, needles[i], len1) == 0)
+            return true;
+    }
+    return false;
+}
+
+
 static void print_array(int arr[], int size)
 {
     for (int i = 0; i < size; ++i)
@@ -384,36 +528,59 @@ static void print_array(int arr[], int size)
     printf("\n");
 }
 
-int str_delimiter(char* apSrc, char** apRetArr, int aArrSize, char aDelimiter)
+int str_delimiter(char* src, char** arr, int arr_size, char delimiter)
 {
-    if (!apSrc) {
+    if (!src) {
         return 0;
     }
 
-    char* lpCur = apSrc;
+    char* pur = src;
     int n = 0;
-    while (n < aArrSize)
+    while (n < arr_size)
     {
-        apRetArr[n++] = lpCur;
-        lpCur = strchr(lpCur, aDelimiter);
-        if (!lpCur) {
+        arr[n++] = pur;
+        pur = strchr(pur, delimiter);
+        if (!pur) {
             break;
         }
 
-        *lpCur++ = 0x00;
+        *pur++ = 0x00;
     }
     return n;
 }
 
-int str_delimiter_ex(const char* src, int length, zditem_t* retArr, int arrSize, const char* sep)
+int str_delimiters(char* src, char** arr, int arr_size, const char* sep)
 {
-    int lenSep = (int)strlen(sep);
+    if (!src) {
+        return 0;
+    }
+
+    int sep_len = (int)strlen(sep);
+    char* pcur = src;
+    int n = 0;
+    while (n < arr_size)
+    {
+        arr[n++] = pcur;
+        pcur = strstr(pcur, sep);
+        if (!pcur) {
+            break;
+        }
+
+        *pcur = 0x00;
+        pcur += sep_len;
+    }
+    return n;
+}
+
+int str_delimiter_ex(const char* src, int length, zditem_t* ret_arr, int arr_size, const char* sep)
+{
+    int sep_len = (int)strlen(sep);
     int index = 0;
     const char* sentinel = src + length;
-    while (index < arrSize)
+    while (index < arr_size)
     {
         char* end;
-        if (lenSep == 1)
+        if (sep_len == 1)
             end = strchr(src, *sep);
         else
             end = strstr(src, sep);
@@ -423,24 +590,23 @@ int str_delimiter_ex(const char* src, int length, zditem_t* retArr, int arrSize,
             // last item
             if (sentinel - src > 0)
             {
-                retArr[index].ptr = (char*)src;
-                retArr[index].len = (int)(sentinel - src);
+                ret_arr[index].ptr = (char*)src;
+                ret_arr[index].len = (int)(sentinel - src);
                 index++;
             }
             break;
         }
 
-        retArr[index].ptr = (char*)src;
-        retArr[index].len = (int)(end - src);
+        ret_arr[index].ptr = (char*)src;
+        ret_arr[index].len = (int)(end - src);
         index++;
 
         // next pos
-        src = end + lenSep;
+        src = end + sep_len;
     }
 
     return index;
 }
-
 
 int read_number_from_file(const char* filename)
 {
@@ -448,12 +614,11 @@ int read_number_from_file(const char* filename)
     FILE* fp;
     fp = fopen(filename, "r");
     if (fp) {
-        fscanf(fp, "%d", &lValue);
+        (void)fscanf(fp, "%d", &lValue);
         fclose(fp);
     }
     return lValue;
 }
-
 
 int read_file_content(const char* filename, char buf[], int size)
 {
@@ -475,16 +640,51 @@ int binary_search(int arr[], int size, int val)
     while (low < high)
     {
         middle = (low + high) >> 1;
-        if (val == arr[middle])
-        {
+        if (val == arr[middle]) {
             return middle;
         }
-        else if (val < arr[middle])
-        {
+        else if (val < arr[middle]) {
             high = middle;
         }
-        else
-        {
+        else {
+            low = middle + 1;
+        }
+    }
+    return -1;
+}
+
+int binary_search_i64(int64_t arr[], int size, int64_t val)
+{
+    int low = 0, middle = 0, high = size;
+    while (low < high)
+    {
+        middle = (low + high) >> 1;
+        if (val == arr[middle]) {
+            return middle;
+        }
+        else if (val < arr[middle]) {
+            high = middle;
+        }
+        else {
+            low = middle + 1;
+        }
+    }
+    return -1;
+}
+
+int binary_search_dbl(double arr[], int size, double val)
+{
+    int low = 0, middle = 0, high = size;
+    while (low < high)
+    {
+        middle = (low + high) >> 1;
+        if (DBL_EQ(val, arr[middle], DBL_EPSILON_E6)) {
+            return middle;
+        }
+        else if (val < arr[middle]) {
+            high = middle;
+        }
+        else {
             low = middle + 1;
         }
     }
@@ -511,25 +711,6 @@ int binary_search2(int arr[], int low, int high, int val)
 }
 #endif
 
-char* zpassword_change(char* apdata)
-{
-	unsigned char *p;
-	unsigned char uch, umask, index = 0;
-	p = (unsigned char *)apdata;
-	while ((uch = *p))
-	{
-		umask = 0xFF - index;
-		*p++ = uch  ^ umask;
-		index++;
-
-		if (index > 8)
-			index = 0;
-	}
-
-	return apdata;
-}
-
-
 uint32_t ztl_randseed()
 {
     uint32_t lSeed;
@@ -549,4 +730,29 @@ uint32_t ztl_rand(uint32_t* pseed)
 {
     *pseed = (214013 * (*pseed) + 2531011);
     return (*pseed >> 16) & 0x7FFF;
+}
+
+double ztl_round(double x, int precision)
+{
+    double m;
+    switch (precision)
+    {
+    case 0:     m = 1;              break;
+    case 1:     m = 10;             break;
+    case 2:     m = 100;            break;
+    case 3:     m = 1000;           break;
+    case 4:     m = 10000;          break;
+    case 5:     m = 100000;         break;
+    case 6:     m = 1000000;        break;
+    case 7:     m = 10000000;       break;
+    case 8:     m = 100000000;      break;
+    case 9:     m = 1000000000;     break;
+    case 10:    m = 10000000000;    break;
+    case 11:    m = 100000000000;   break;
+    case 12:    m = 1000000000000;  break;
+    default:
+        return x;
+    }
+
+    return round(x * m) / m;
 }

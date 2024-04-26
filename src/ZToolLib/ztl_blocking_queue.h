@@ -22,31 +22,37 @@ typedef struct ztl_blocking_queue_st ztl_blocking_queue_t;
 
 
 /* create a blocking queue for multiple threads,
- * implemented by a fixed size lock free queue
+ * implemented by a fixed size lock free queue,
+ * @param elemsize: each element's size
  */
-ztl_blocking_queue_t* ztl_bq_create(int quesize);
+ztl_blocking_queue_t* ztl_bq_create(uint32_t quesize, uint32_t elemsize);
 
 /* release the blocking queue
  */
 void ztl_bq_release(ztl_blocking_queue_t* zbq);
 
 /* try push data into queue, and notify waitors
- * return 0 if success
+ * @param datap: data's address pointer
+ * return 0 if success, otherwise ZTL_ERR_QueueFull
  */
-int ztl_bq_push(ztl_blocking_queue_t* zbq, void* datap, int64_t datai);
+int ztl_bq_push(ztl_blocking_queue_t* zbq, void* datap);
 
-/* try pop data from queue with timeout
- * return 1 if success, 0 if timeout, other if error
+/* try pop data from queue with timeout milli-second
+ * @param datap: data's address pointer
+ * return 1 if success, 0 if timeout, or other if error
  */
-int ztl_bq_pop(ztl_blocking_queue_t* zbq, int timeoutMS, void** datap, int64_t* datai);
+int ztl_bq_pop(ztl_blocking_queue_t* zbq, void* datap, int timeoutms);
 
-/* return current pending data in queue (not the queue's capacity)
+/* return current pending data count in queue (not the queue's capacity)
  */
-int ztl_bq_size(ztl_blocking_queue_t* zbq);
+uint32_t ztl_bq_size(ztl_blocking_queue_t* zbq);
 
 /* return true if no pending data
  */
 bool ztl_bq_empty(ztl_blocking_queue_t* zbq);
+
+void  ztl_bq_set_udata(ztl_blocking_queue_t* zbq, void* udata);
+void* ztl_bq_get_udata(ztl_blocking_queue_t* zbq);
 
 
 #endif//_ZTL_BLOCKING_QUEUE_H_

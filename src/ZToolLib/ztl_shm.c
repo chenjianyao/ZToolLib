@@ -12,6 +12,12 @@
 
 #else
 
+#if 0
+#define _GNU_SOURCE     // for MAP_HUGETLB before mman.h, but sims not work yet
+#define MAP_HUGETLB     0
+#define MAP_ANONYMOUS   0
+#endif//0
+
 #include <errno.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -19,7 +25,7 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 
-#define __USE_SVID
+// #define __USE_SVID
 #include <sys/shm.h>
 
 #define INVALID_HANDLE_VALUE (-1)
@@ -34,11 +40,11 @@ struct ztl_shm_st
     bool        m_Hugepage;
     int         m_OpenOrCreate;
     int         m_Mode;
-    int         m_ShmType;		// anonymous, file-map, share-segment
+    int         m_ShmType;      // anonymous, file-map, share-segment
 #ifdef _MSC_VER
     void*       m_Handle;
 #else
-    int         m_Handle;		// the file handle or anonymous shm handle
+    int         m_Handle;       // the file handle or anonymous shm handle
 #endif//_MSC_VER
     void*       m_FileMapping;
     void*       m_pAddress;
@@ -424,7 +430,7 @@ int ztl_shm_truncate(ztl_shm_t* zshm, uint64_t aSize)
     }
 
     //avoid unused variable warnings in 32 bit systems
-    if (aSize > (uint64_t)INT_MAX)
+    if (aSize > (uint64_t)INT64_MAX)
     {
         return -3;
     }
@@ -670,6 +676,80 @@ int ztl_shm_flush_to_file(ztl_shm_t* zshm, bool aIsAsyncFlag, void* apAddr, uint
 #endif//_WIN32
     }
     return 0;
+}
+
+
+bool ztl_shm_trylock_exclusive(ztl_shm_t* zshm)
+{
+#ifdef _WIN32
+    if (ZTL_SHT_FILEMAP == zshm->m_ShmType || ZTL_SHT_SHMOPEN == zshm->m_ShmType)
+    {
+        const DWORD len = 0xffffffff;
+        DWORD flags;
+
+        flags = LOCKFILE_FAIL_IMMEDIATELY | LOCKFILE_EXCLUSIVE_LOCK;
+
+        OVERLAPPED offset;
+        memset(&offset, 0, sizeof(offset));
+        if (!LockFileEx(zshm->m_Handle, flags, 0, len, len, &offset))
+        {
+            return false;
+        }
+
+        return true;
+    }
+    return false;
+#else
+
+    if (ZTL_SHT_FILEMAP == zshm->m_ShmType || ZTL_SHT_SHMOPEN == zshm->m_ShmType)
+    {
+        int lRet = lockf(zshm->m_Handle, F_TLOCK, 0);
+        if (lRet == 0)
+        {
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    }
+    return false;
+#endif//_WIN32
+}
+
+bool ztl_shm_unlock_file(ztl_shm_t* zshm)
+{
+#ifdef _WIN32
+    if (ZTL_SHT_FILEMAP == zshm->m_ShmType || ZTL_SHT_SHMOPEN == zshm->m_ShmType)
+    {
+        DWORD len = 0xffffffff;
+        OVERLAPPED offset;
+        memset(&offset, 0, sizeof(offset));
+
+        if (!UnlockFileEx(zshm->m_Handle, 0, len, len, &offset))
+        {
+            return false;
+        }
+
+        return true;
+    }
+    return false;
+#else
+
+    if (ZTL_SHT_FILEMAP == zshm->m_ShmType || ZTL_SHT_SHMOPEN == zshm->m_ShmType)
+    {
+        int lRet = lockf(zshm->m_Handle, F_ULOCK, 0);
+        if (lRet == 0)
+        {
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    }
+    return false;
+#endif//_WIN32
 }
 
 static int _PrivOpenOrCreate(ztl_shm_t* zshm, const char* apName, int aOpenOrCreate, int aAccessMode)

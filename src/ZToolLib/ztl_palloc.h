@@ -20,9 +20,9 @@ extern "C" {
 
 #define ZTL_DEFAULT_POOL_SIZE    (16 * 1024)
 
-#define ZTL_ALIGNMENT            sizeof(unsigned long) 
+#define ZTL_ALIGNMENT            sizeof(void*) 
 
-#define ZTL_POOL_ALIGNMENT       16
+#define ZTL_POOL_ALIGNMENT       64
 #define ZTL_MIN_POOL_SIZE                                                   \
     ztl_align((sizeof(ztl_pool_t) + 2 * sizeof(ztl_pool_large_t)),          \
               ZTL_POOL_ALIGNMENT)
@@ -50,7 +50,7 @@ struct ztl_pool_large_s {
 
 
 typedef struct {
-    uint8_t				*last;
+    uint8_t             *last;
     uint8_t             *end;
     ztl_pool_t           *next;
     uint32_t             failed;
@@ -75,6 +75,7 @@ void *ztl_pcalloc(ztl_pool_t *pool, size_t size);
 void *ztl_pmemalign(ztl_pool_t *pool, size_t size, size_t alignment);
 uint32_t ztl_pfree(ztl_pool_t *pool, void *p);
 
+char* ztl_palloc_dup(ztl_pool_t *pool, void* s, size_t size);
 
 ztl_pool_cleanup_t *ztl_pool_cleanup_add(ztl_pool_t *p, size_t size);
 

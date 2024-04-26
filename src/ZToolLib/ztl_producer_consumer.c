@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "ztl_atomic.h"
+#include "ztl_errors.h"
 #include "lockfreequeue.h"
 #include "ztl_threads.h"
 #include "ztl_simple_event.h"
@@ -11,9 +12,9 @@
 
 typedef struct 
 {
-    ztl_pc_handler_pt handler;
-    void*   data;
-    int64_t type;
+    ztl_pc_handler_pt   handler;
+    void*               data;
+    int64_t             type;
 }ztl_pc_data_t;
 
 struct ztl_producer_consumer_st
@@ -27,7 +28,8 @@ struct ztl_producer_consumer_st
     volatile uint32_t   count;
 };
 
-static bool _ztl_pc_handler_empty(ztl_producer_consumer_t* zpc, int64_t type, void* data)
+static bool _ztl_pc_handler_empty(ztl_producer_consumer_t* zpc,
+    int64_t type, void* data)
 {
     (void)zpc;
     (void)type;
@@ -35,8 +37,7 @@ static bool _ztl_pc_handler_empty(ztl_producer_consumer_t* zpc, int64_t type, vo
     return false;
 }
 
-/* the consumer thread routine
- */
+
 static ztl_thread_result_t ZTL_THREAD_CALL _zpc_work_thread(void* arg)
 {
     ztl_producer_consumer_t* zpc;
@@ -46,13 +47,11 @@ static ztl_thread_result_t ZTL_THREAD_CALL _zpc_work_thread(void* arg)
 
     while (true)
     {
-        pcdata.handler = NULL;
-
-        if (lfqueue_pop_value(zpc->queue, &pcdata) != 0) {
+        if (lfqueue_pop(zpc->queue, (void**)&pcdata) != 0) {
             ztl_simevent_timedwait(zpc->event, 1);
             continue;
         }
-        ztl_atomic_dec(&zpc->count, 1);
+        atomic_dec(&zpc->count, 1);
 
         if (pcdata.handler &&
             !pcdata.handler(zpc, pcdata.type, pcdata.data)) {
@@ -92,20 +91,20 @@ int ztl_pc_start(ztl_producer_consumer_t* zpc)
 int ztl_pc_post(ztl_producer_consumer_t* zpc, ztl_pc_handler_pt handler, int64_t type, void* data)
 {
     if (!zpc->started) {
-        return -2;
+        return ZTL_ERR_NotStarted;
     }
 
     uint32_t        count;
     ztl_pc_data_t   pcdata;
-    pcdata.handler = handler;
-    pcdata.type = type;
-    pcdata.data    = data;
+    pcdata.handler  = handler;
+    pcdata.type     = type;
+    pcdata.data     = data;
 
-    if (0 != lfqueue_push_value(zpc->queue, &pcdata)) {
-        return -1;
+    if (0 != lfqueue_push(zpc->queue, &pcdata)) {
+        return ZTL_ERR_QueueFull;
     }
 
-    count = ztl_atomic_add(&zpc->count, 1);
+    count = atomic_add(&zpc->count, 1);
     if (count == 0 || count == (uint32_t)-1) {
         ztl_simevent_signal(zpc->event);
     }
@@ -116,7 +115,7 @@ int ztl_pc_post(ztl_producer_consumer_t* zpc, ztl_pc_handler_pt handler, int64_t
 int ztl_pc_stop(ztl_producer_consumer_t* zpc)
 {
     if (!zpc->started) {
-        return -1;
+        return ZTL_ERR_NotStarted;
     }
 
     ztl_pc_post(zpc, _ztl_pc_handler_empty, 0, NULL);
@@ -126,6 +125,7 @@ int ztl_pc_stop(ztl_producer_consumer_t* zpc)
     if (zpc->thr) {
         void* retval;
         ztl_thread_join(zpc->thr, &retval);
+        (void)retval;
     }
 
     return 0;
@@ -151,7 +151,7 @@ void ztl_pc_release(ztl_producer_consumer_t* zpc)
 
 int ztl_pc_pending(ztl_producer_consumer_t* zpc)
 {
-    return ztl_atomic_add(&zpc->count, 0);
+    return atomic_add(&zpc->count, 0);
 }
 
 void  ztl_pc_set_udata(ztl_producer_consumer_t* zpc, void* udata)

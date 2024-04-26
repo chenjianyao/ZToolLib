@@ -1,8 +1,3 @@
-/*
- * Copyright(C) Yingzhi Zheng.
- * Copyright(C) <zhengyingzhi112@163.com>
- */
-
 #ifndef _ZTL_EVENT_TIMER_H_
 #define _ZTL_EVENT_TIMER_H_
 
@@ -18,33 +13,47 @@
 extern "C" {
 #endif
     
-typedef void(*ztl_evt_handler_pt)(void* ctx, ztl_rbtree_node_t* node);
+typedef void(*ztl_evt_handler_pt)(void* ctx, rbtree_node_t* node);
 
 typedef struct ztl_evtimer_s ztl_evtimer_t;
 
 struct ztl_evtimer_s
 {
-    ztl_rbtree_t        event_timers;
-    ztl_rbtree_node_t   event_timer_sentinel;
-    uint64_t            last_time;
+    rbtree_t        event_timers;
+    rbtree_node_t   event_timer_sentinel;
+    uint64_t        last_time;
+    uint32_t        count;
 };
 
 /* init the timer container
  */
 void ztl_evtimer_init(ztl_evtimer_t* et);
 
+void ztl_evtimer_update_time(ztl_evtimer_t* et, uint64_t currtime);
+
 /* add a timer into the container
- * @timeoutMS is the timedout millisec from now, not the absolute time
- * @timerset the 'timer' whether added already
+ * @timeout_ms is the timedout millisec from now, not the absolute time
+ * @timerset the 'timer' flag whether added already
  */
-int ztl_evtimer_add(ztl_evtimer_t* et, ztl_rbtree_node_t* timer,
-    uint32_t timeoutMS, int timerset);
+int ztl_evtimer_add(ztl_evtimer_t* et, rbtree_node_t* timer,
+    uint32_t timeout_ms, int timerset);
 
 /* delete the timer from container */
-int ztl_evtimer_del(ztl_evtimer_t* et, ztl_rbtree_node_t* timer);
+int ztl_evtimer_del(ztl_evtimer_t* et, rbtree_node_t* timer);
 
-/* expire timedout timers */
-void ztl_evtimer_expire(ztl_evtimer_t* et, uint64_t currtime,
+/* get the mininum timer node
+ */
+rbtree_node_t* ztl_evtimer_min(ztl_evtimer_t* et);
+
+/* get the mininum timer ms remaining
+ * @param: currtime could be passed 0 means et.last_time
+ */
+msec_int_t ztl_evtimer_min_ms(ztl_evtimer_t* et, uint64_t currtime);
+
+/* expire timedout timers,
+ * @return the nearest time ms left, -1 is none
+ */
+int ztl_evtimer_expire(ztl_evtimer_t* et, uint64_t currtime,
     ztl_evt_handler_pt handler, void* ctx);
 
 #ifdef __cplusplus

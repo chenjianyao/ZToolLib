@@ -17,33 +17,32 @@
 #ifdef _MSC_VER
 #pragma comment(lib, "winmm.lib")
 #endif
-#elif defined(__unix)
+#else
 #include <sys/time.h>
 #include <unistd.h>
-#else
-#error it can only be compiled under windows or unix
+// #error it can only be compiled under windows or unix
 #endif
 
 #include "ztl_memcpy.h"
 
 static unsigned int gettime()
 {
-	#if (defined(_WIN32) || defined(WIN32))
-	return timeGetTime();
-	#else
-	static struct timezone tz={ 0,0 };
-	struct timeval time;
-	gettimeofday(&time,&tz);
-	return (time.tv_sec * 1000 + time.tv_usec / 1000);
-	#endif
+#if (defined(_WIN32) || defined(WIN32))
+    return timeGetTime();
+#else
+    // static struct timezone tz={ 0,0 };
+    struct timeval time;
+    gettimeofday(&time, NULL);
+    return (time.tv_sec * 1000 + time.tv_usec / 1000);
+#endif
 }
 
 static void sleepms(unsigned int millisec)
 {
 #if defined(_WIN32) || defined(WIN32)
-	Sleep(millisec);
+    Sleep(millisec);
 #else
-	usleep(millisec * 1000);
+    usleep(millisec * 1000);
 #endif
 }
 
@@ -110,7 +109,7 @@ void random_bench(int maxsize, int times)
 	}
 	sleepms(100);
 	t1 = gettime();
-	for (p1 = 0, p2 = 0, i = 0; i < times; i++) {
+    for (p1 = 0, p2 = 0, i = 0; i < (uint32_t)times; i++) {
 		int offset1 = random_offsets[(p1++) & 0xffff];
 		int offset2 = random_offsets[(p1++) & 0xffff];
 		int size = random_sizes[(p2++) & 0x7fff];
@@ -119,7 +118,7 @@ void random_bench(int maxsize, int times)
 	t1 = gettime() - t1;
 	sleepms(100);
 	t2 = gettime();
-	for (p1 = 0, p2 = 0, i = 0; i < times; i++) {
+    for (p1 = 0, p2 = 0, i = 0; i < (uint32_t)times; i++) {
 		int offset1 = random_offsets[(p1++) & 0xffff];
 		int offset2 = random_offsets[(p1++) & 0xffff];
 		int size = random_sizes[(p2++) & 0x7fff];

@@ -98,7 +98,7 @@ static void _Output2DbgView(FILE* logfp, char* buf, int len)
 static void _Output2Scrn(FILE* logfp, char* buf, int len)
 {
     (void)len;
-    fprintf(logfp, buf);
+    fprintf(logfp, "%s", buf);
 }
 static void _Output2Syslog(FILE* logfp, char* buf, int len)
 {
@@ -143,12 +143,12 @@ static char* _WaitLogMsg(ztl_log_t* log)
     do 
     {
         lpBuff = NULL;
-        if (lfqueue_pop(log->queue, &lpBuff) != 0) {
+        if (lfqueue_pop(log->queue, (void**)&lpBuff) != 0) {
             ztl_thread_cond_wait(&log->cond, &log->lock);
             continue;
         }
 
-        ztl_atomic_dec(&log->itemCount, 1);
+        atomic_dec(&log->itemCount, 1);
         break;
     } while (log->running);
 
@@ -249,7 +249,7 @@ static int _ztl_log_createfile(ztl_log_t* log)
         char lRealFileName[512] = "";
         char lDate[32] = "";
         time_t lNow = time(0);
-        sprintf(lDate, "%d", ztl_tointdate(lNow));
+        ztl_ymd0(lDate, lNow);
 
         if (!strstr(log->filename, "_YYYYMMDD"))
         {
@@ -314,15 +314,11 @@ ztl_log_t* ztl_log_create(const char* filename, ztl_log_output_t outType, bool i
 
     if (log->is_async)
     {
-#ifdef _WIN32
-        ztl_thread_mutex_init(&log->lock, NULL);
-#else
         ztl_thread_mutexattr_t ma;
         ztl_thread_mutexattr_init(&ma);
         ztl_thread_mutexattr_settype(&ma, ZTL_THREAD_MUTEX_ADAPTIVE_NP);
         ztl_thread_mutex_init(&log->lock, &ma);
         ztl_thread_mutexattr_destroy(&ma);
-#endif//_WIN32
         ztl_thread_cond_init(&log->cond, NULL);
 
         log->queue  = lfqueue_create(ZTL_LOG_QUEUE_SIZE, sizeof(char*));
@@ -388,15 +384,11 @@ ztl_log_t* ztl_log_create_udp(const char* filename, ztl_log_output_t outType,
             return NULL;
         }
 
-#ifdef _WIN32
-        ztl_thread_mutex_init(&log->lock, NULL);
-#else
         ztl_thread_mutexattr_t ma;
         ztl_thread_mutexattr_init(&ma);
         ztl_thread_mutexattr_settype(&ma, ZTL_THREAD_MUTEX_ADAPTIVE_NP);
         ztl_thread_mutex_init(&log->lock, &ma);
         ztl_thread_mutexattr_destroy(&ma);
-#endif//_WIN32
         ztl_thread_cond_init(&log->cond, NULL);
 
         // create udp log recv thread
@@ -457,7 +449,31 @@ void ztl_log_set_level(ztl_log_t* log, ztl_log_level_t level)
         log->log_level = level;
 }
 
-extern ztl_log_level_t ztl_log_get_level(ztl_log_t* log)
+int  ztl_log_set_levelstr(ztl_log_t* log, const char* level)
+{
+    if (!log)
+        return -1;
+
+    if (ztl_stricmp(level, "trace") == 0)
+        log->log_level = ZTL_LOG_DEBUG;
+    else if (ztl_stricmp(level, "debug") == 0)
+        log->log_level = ZTL_LOG_DEBUG;
+    else if (ztl_stricmp(level, "info") == 0)
+        log->log_level = ZTL_LOG_INFO;
+    else if (ztl_stricmp(level, "notice") == 0)
+        log->log_level = ZTL_LOG_NOTICE;
+    else if (ztl_stricmp(level, "warn") == 0)
+        log->log_level = ZTL_LOG_WARN;
+    else if (ztl_stricmp(level, "error") == 0)
+        log->log_level = ZTL_LOG_ERROR;
+    else if (ztl_stricmp(level, "critical") == 0)
+        log->log_level = ZTL_LOG_CRITICAL;
+    else
+        return -1;
+    return 0;
+}
+
+ztl_log_level_t ztl_log_get_level(ztl_log_t* log)
 {
     if (log)
         return log->log_level;
@@ -500,11 +516,11 @@ void ztl_log(ztl_log_t* log, ztl_log_level_t level, const char* fmt, ...)
     lpHead          = (ztl_log_header_t*)lpBuff;
     lpHead->type    = ZTL_LOG_TYPE_NONE;
     lpHead->size    = (uint16_t)(lLength - ZTL_LOG_HEAD_OFFSET);
-    lpHead->sequence= ztl_atomic_add(&log->sequence, 1) + 1;
+    lpHead->sequence= atomic_add(&log->sequence, 1) + 1;
 
     if (log->is_async) {
         lfqueue_push(log->queue, &lpBuff);
-        if (ztl_atomic_add(&log->itemCount, 1) == 0) {
+        if (atomic_add(&log->itemCount, 1) == 0) {
             ztl_thread_cond_signal(&log->cond);
         }
     }
@@ -555,11 +571,11 @@ void ztl_log2(ztl_log_t* log, ztl_log_level_t level, const char* line, int len)
     lpHead          = (ztl_log_header_t*)lpBuff;
     lpHead->type    = ZTL_LOG_TYPE_NONE;
     lpHead->size    = (uint16_t)(lLength - ZTL_LOG_HEAD_OFFSET);
-    lpHead->sequence= ztl_atomic_add(&log->sequence, 1) + 1;
+    lpHead->sequence= atomic_add(&log->sequence, 1) + 1;
 
     if (log->is_async) {
         lfqueue_push(log->queue, &lpBuff);
-        if (ztl_atomic_add(&log->itemCount, 1) == 0) {
+        if (atomic_add(&log->itemCount, 1) == 0) {
             ztl_thread_cond_signal(&log->cond);
         }
     }

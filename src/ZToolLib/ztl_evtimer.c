@@ -1,28 +1,42 @@
 #include <stdlib.h>
+
+#ifdef _MSC_VER
+#include <Windows.h>
+#endif
+
+#include "ztl_atomic.h"
+#include "ztl_errors.h"
 #include "ztl_evtimer.h"
 
 
 void ztl_evtimer_init(ztl_evtimer_t* et)
 {
-    ztl_rbtree_init(&et->event_timers, &et->event_timer_sentinel, 
-        ztl_rbtree_insert_timer_value);
+    et->last_time = 0;
+    et->count = 0;
+    rbtree_init(&et->event_timers, &et->event_timer_sentinel, 
+                rbtree_insert_timer_value);
 }
 
-int ztl_evtimer_add(ztl_evtimer_t* et, ztl_rbtree_node_t* timer, 
-    uint32_t aTimeoutMS, int aTimerSet)
+void ztl_evtimer_update_time(ztl_evtimer_t* et, uint64_t currtime)
 {
-    ztl_msec_t      key;
-    ztl_msec_int_t  diff;
+    et->last_time = currtime;
+}
 
-    if (aTimeoutMS == 0) {
-        return -1;
+int ztl_evtimer_add(ztl_evtimer_t* et, rbtree_node_t* timer, 
+    uint32_t timeout_ms, int timerset)
+{
+    msec_t      key;
+    msec_int_t  diff;
+
+    if (timeout_ms == 0) {
+        return ZTL_ERR_InvalParam;
     }
 
     /* Currently no lock, since event timer is only working at IO thread */
 
-    key = et->last_time + aTimeoutMS;
+    key = et->last_time + timeout_ms;
 
-    if (aTimerSet) {
+    if (timerset) {
 
         /*
         * Use a previous timer value if difference between it and a new
@@ -30,8 +44,8 @@ int ztl_evtimer_add(ztl_evtimer_t* et, ztl_rbtree_node_t* timer,
         * to minimize the rbtree operations for fast connections.
         */
 
-        diff = (ztl_msec_int_t)(key - timer->key);
-        if ((ztl_msec_t)abs((int)diff) < ZTL_TIMER_LAZY_DELAY) {
+        diff = (msec_int_t)(key - timer->key);
+        if ((msec_t)abs((int)diff) < ZTL_TIMER_LAZY_DELAY) {
             return 1;
         }
 
@@ -39,13 +53,15 @@ int ztl_evtimer_add(ztl_evtimer_t* et, ztl_rbtree_node_t* timer,
     }
 
     timer->key = key;
-    ztl_rbtree_insert(&et->event_timers, timer);
+    rbtree_insert(&et->event_timers, timer);
+    atomic_add(&et->count, 1);
     return 0;
 }
 
-int ztl_evtimer_del(ztl_evtimer_t* et, ztl_rbtree_node_t* timer)
+int ztl_evtimer_del(ztl_evtimer_t* et, rbtree_node_t* timer)
 {
-    ztl_rbtree_delete(&et->event_timers, timer);
+    rbtree_delete(&et->event_timers, timer);
+    atomic_dec(&et->count, 1);
 
 #if defined(ZTL_DEBUG)
     timer->left = 0;
@@ -56,10 +72,33 @@ int ztl_evtimer_del(ztl_evtimer_t* et, ztl_rbtree_node_t* timer)
     return 0;
 }
 
-void ztl_evtimer_expire(ztl_evtimer_t* et, uint64_t currtime, 
+rbtree_node_t* ztl_evtimer_min(ztl_evtimer_t* et)
+{
+    rbtree_node_t* root;
+    root = et->event_timers.root;
+    if (root == et->event_timers.sentinel) {
+        return NULL;
+    }
+
+    return rbtree_min(root, et->event_timers.sentinel);
+}
+
+msec_int_t ztl_evtimer_min_ms(ztl_evtimer_t* et, uint64_t currtime)
+{
+    rbtree_node_t* node;
+    node = ztl_evtimer_min(et);
+    if (node) {
+        if (currtime == 0)
+            currtime = et->last_time;
+        return (msec_int_t)(node->key - et->last_time);
+    }
+    return -1;
+}
+
+int ztl_evtimer_expire(ztl_evtimer_t* et, uint64_t currtime,
     ztl_evt_handler_pt handler, void* ctx)
 {
-    ztl_rbtree_node_t  *node, *root, *sentinel;
+    rbtree_node_t  *node, *root, *sentinel;
 
     sentinel = et->event_timers.sentinel;
 
@@ -69,21 +108,24 @@ void ztl_evtimer_expire(ztl_evtimer_t* et, uint64_t currtime,
 
         root = et->event_timers.root;
         if (root == sentinel) {
-            return;
+            return ZTL_ERR_Empty;
         }
 
-        node = ztl_rbtree_min(root, sentinel);
+        node = rbtree_min(root, sentinel);
 
-        /* node->key > ngx_current_time */
-        if ((ztl_msec_int_t)(node->key - et->last_time) > 0) {
-            break;
+        /* node->key > current_time means not reached */
+        if ((msec_int_t)(node->key - et->last_time) > 0) {
+            return (int)(node->key - et->last_time);
         }
 
         //fprintf(stderr, "ztl_expire_event_timer {}", node->udata);
 
-        ztl_rbtree_delete(&et->event_timers, node);
+        rbtree_delete(&et->event_timers, node);
 
         if (handler)
             handler(ctx, node);
     }
+
+    // cannot run here!!
+    return -1;
 }

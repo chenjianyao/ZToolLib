@@ -3,6 +3,7 @@
 #include <stdlib.h>
 
 #include "ztl_palloc.h"
+#include "ztl_utils.h"
 #include "ztl_config.h"
 
 #define ZTL_CONFIG_DEFAULT_ITEMS    512
@@ -13,11 +14,6 @@ typedef struct
     uint8_t val;        // 0 or 1
 }ztl_bool_value_t;
 
-typedef struct 
-{
-    char*   key;
-    char*   value;
-}ztl_pair_value_t;
 
 static ztl_bool_value_t zbooltable[] = {
     { "1",      1 },
@@ -43,8 +39,7 @@ static ztl_bool_value_t zbooltable[] = {
 
 struct ztl_config_s
 {
-    char                filename[256];
-    FILE*               fp;
+    char                filename[512];
     char                comment;
     char                delimiter;
     uint32_t            count;
@@ -59,26 +54,32 @@ static int ztl_read_file_content(ztl_config_t* zconf);
 
 ztl_config_t* ztl_config_open(const char* filename, char comment, char delimiter)
 {
-    ztl_config_t* zconf;
+    ztl_config_t*   zconf;
+    ztl_pool_t*     pool;
 
     if (comment == 0)
         comment = '#';
     if (delimiter == 0)
         delimiter = ' ';
 
-    zconf = (ztl_config_t*)malloc(sizeof(ztl_config_t));
-    memset(zconf, 0, sizeof(ztl_config_t));
+    pool = ztl_create_pool(ZTL_DEFAULT_POOL_SIZE);
+    if (!pool) 
+    {
+        return NULL;
+    }
 
+    zconf = (ztl_config_t*)ztl_pcalloc(pool, sizeof(ztl_config_t));
     strncpy(zconf->filename, filename, sizeof(zconf->filename) - 1);
     zconf->comment   = comment;
     zconf->delimiter = delimiter;
     zconf->count     = 0;
     zconf->nalloc    = ZTL_CONFIG_DEFAULT_ITEMS;
-    zconf->items     = calloc(1, zconf->nalloc * sizeof(ztl_pair_value_t));
-    zconf->pool      = ztl_create_pool(4096);
+    zconf->items     = ztl_pcalloc(pool, zconf->nalloc * sizeof(ztl_pair_value_t));
+    zconf->pool      = pool;
 
     // open the file and read content
-    if (ztl_read_file_content(zconf) != 0) {
+    if (ztl_read_file_content(zconf) != 0)
+    {
         ztl_config_close(zconf);
         return NULL;
     }
@@ -92,20 +93,10 @@ void ztl_config_close(ztl_config_t* zconf)
         return;
     }
 
-    if (zconf->fp) {
-        fclose(zconf->fp);
-        zconf->fp = NULL;
+    ztl_pool_t* pool = zconf->pool;
+    if (pool) {
+        ztl_destroy_pool(pool);
     }
-
-    if (zconf->pool) {
-        ztl_destroy_pool(zconf->pool);
-    }
-
-    if (zconf->items) {
-        free(zconf->items);
-    }
-
-    free(zconf);
 }
 
 bool ztl_config_set_item(ztl_config_t* zconf, const char* key, const char* val, bool overwrite)
@@ -120,8 +111,10 @@ bool ztl_config_set_item(ztl_config_t* zconf, const char* key, const char* val, 
 
     for (uint32_t i = 0; i < zconf->count; ++i)
     {
-        if (strcmp(zconf->items[i].key, key) == 0) {
-            if (overwrite) {
+        if (strcmp(zconf->items[i].key, key) == 0)
+        {
+            if (overwrite)
+            {
                 char* lpcopy = (char*)ztl_pcalloc(zconf->pool, strlen(val) + 1);
                 memcpy(lpcopy, val, strlen(val));
                 zconf->items[i].value = lpcopy;
@@ -137,23 +130,48 @@ bool ztl_config_set_item(ztl_config_t* zconf, const char* key, const char* val, 
     }
     lpitem = &zconf->items[zconf->count++];
 
-    lpitem->key = (char*)ztl_pcalloc(zconf->pool, keylen + 1);
-    lpitem->value = (char*)ztl_pcalloc(zconf->pool, vallen + 1);
+    lpitem->key = (char*)ztl_palloc(zconf->pool, keylen + 1);
+    lpitem->value = (char*)ztl_palloc(zconf->pool, vallen + 1);
     memcpy(lpitem->key, key, keylen);
     memcpy(lpitem->value, val, vallen);
+    lpitem->key[keylen] = 0;
+    lpitem->value[vallen] = 0;
 
     return true;
 }
 
-bool ztl_config_read_str(ztl_config_t* zconf, const char* key, char** outval, int* outlen)
+int ztl_config_all_items(ztl_config_t* zconf, ztl_pair_value_t* pair_values[], uint32_t size)
+{
+    uint32_t n;
+    for (n = 0; n < zconf->count; ++n)
+    {
+        if (n >= size)
+            break;
+        pair_values[n] = &zconf->items[n];
+    }
+    return n;
+}
+
+bool ztl_config_read_str(ztl_config_t* zconf, const char* key, char** poutval, int* outlen)
 {
     char* lpv;
-    lpv = ztl_config_have(zconf, key);
+    lpv = ztl_config_have(zconf, key, 0);
     if (lpv) {
-        if (outval)
-            *outval = lpv;
+        if (poutval)
+            *poutval = lpv;
         if (outlen)
             *outlen = (int)strlen(lpv);
+        return true;
+    }
+    return false;
+}
+
+bool ztl_config_read_strval(ztl_config_t* zconf, const char* key, char* outval, int len)
+{
+    char* pv;
+    int   vallen;
+    if (ztl_config_read_str(zconf, key, &pv, &vallen)) {
+        strncpy(outval, pv, len);
         return true;
     }
     return false;
@@ -162,9 +180,9 @@ bool ztl_config_read_str(ztl_config_t* zconf, const char* key, char** outval, in
 bool ztl_config_read_int16(ztl_config_t* zconf, const char* key, void* outi16)
 {
     char* lpv;
-    lpv = ztl_config_have(zconf, key);
+    lpv = ztl_config_have(zconf, key, 0);
     if (lpv) {
-        *(int16_t*)outi16 = atoi(lpv);
+        *((int16_t*)outi16) = atoi(lpv);
         return true;
     }
     return false;
@@ -173,9 +191,9 @@ bool ztl_config_read_int16(ztl_config_t* zconf, const char* key, void* outi16)
 bool ztl_config_read_int32(ztl_config_t* zconf, const char* key, void* outi32)
 {
     char* lpv;
-    lpv = ztl_config_have(zconf, key);
+    lpv = ztl_config_have(zconf, key, 0);
     if (lpv) {
-        *(int32_t*)outi32 = atoi(lpv);
+        *((int32_t*)outi32) = atoi(lpv);
         return true;
     }
     return false;
@@ -184,9 +202,9 @@ bool ztl_config_read_int32(ztl_config_t* zconf, const char* key, void* outi32)
 bool ztl_config_read_int64(ztl_config_t* zconf, const char* key, void* outi64)
 {
     char* lpv;
-    lpv = ztl_config_have(zconf, key);
+    lpv = ztl_config_have(zconf, key, 0);
     if (lpv) {
-        *(int64_t*)outi64 = atoll(lpv);
+        *((int64_t*)outi64) = atoll(lpv);
         return true;
     }
     return false;
@@ -195,9 +213,9 @@ bool ztl_config_read_int64(ztl_config_t* zconf, const char* key, void* outi64)
 bool ztl_config_read_double(ztl_config_t* zconf, const char* key, void* outdbl)
 {
     char* lpv;
-    lpv = ztl_config_have(zconf, key);
+    lpv = ztl_config_have(zconf, key, 0);
     if (lpv) {
-        *(double*)outdbl = atof(lpv);
+        *((double*)outdbl) = atof(lpv);
         return true;
     }
     return false;
@@ -206,16 +224,16 @@ bool ztl_config_read_double(ztl_config_t* zconf, const char* key, void* outdbl)
 bool ztl_config_read_bool(ztl_config_t* zconf, const char* key, bool* outbool)
 {
     char* lpv;
-    lpv = ztl_config_have(zconf, key);
+    lpv = ztl_config_have(zconf, key, 0);
     if (lpv) {
-        *outbool = ztl_boolvalue_loopup(lpv);
+        *outbool = ztl_boolvalue_lookup(lpv);
         return true;
     }
     return false;
 }
 
 
-bool ztl_boolvalue_loopup(const char* desc)
+bool ztl_boolvalue_lookup(const char* desc)
 {
     if (!desc || !desc[0]) {
         return false;
@@ -223,7 +241,7 @@ bool ztl_boolvalue_loopup(const char* desc)
 
     for (int i = 0; zbooltable[i].desc; ++i)
     {
-        if (strcmp(zbooltable[i].desc, desc) == 0) {
+        if (ztl_stricmp(zbooltable[i].desc, desc) == 0) {
             return zbooltable[i].val;
         }
     }
@@ -231,14 +249,14 @@ bool ztl_boolvalue_loopup(const char* desc)
     return false;
 }
 
-char* ztl_config_have(ztl_config_t* zconf, const char* key)
+char* ztl_config_have(ztl_config_t* zconf, const char* key, int strictly)
 {
-    ztl_pair_value_t* lpPair;
+    ztl_pair_value_t* pv;
     for (uint32_t i = 0; i < zconf->count; ++i)
     {
-        lpPair = &zconf->items[i];
-        if (strcmp(lpPair->key, key) == 0) {
-            return lpPair->value;
+        pv = &zconf->items[i];
+        if ((strictly && strcmp(pv->key, key) == 0) || (ztl_stricmp(pv->key, key) == 0)) {
+            return pv->value;
         }
     }
 
@@ -257,15 +275,14 @@ static int ztl_read_file_content(ztl_config_t* zconf)
         return -1;
     }
 
-    zconf->fp = fp;
-
     // parse the file content
     while (!feof(fp))
     {
         memset(buffer, 0, sizeof(buffer));
-        fgets(buffer, sizeof(buffer) - 1, fp);
+        (void)fgets(buffer, sizeof(buffer) - 1, fp);
 
         lefttrim(buffer);
+        replace_char(buffer, '\t', ' ');
         if (buffer[0] == zconf->comment) {
             continue;
         }
@@ -286,6 +303,7 @@ static int ztl_read_file_content(ztl_config_t* zconf)
 
         ztl_config_set_item(zconf, lpkey, lpval, true);
     }
+    fclose(fp);
 
     return 0;
 }

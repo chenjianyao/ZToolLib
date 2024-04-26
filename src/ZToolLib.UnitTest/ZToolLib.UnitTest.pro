@@ -33,7 +33,9 @@ build_pass:CONFIG(debug, debug|release) {
         DESTDIR = ../../build/release
 }
 
-QMAKE_CFLAGS += -std=c99
+# QMAKE_CFLAGS += -std=c99
+# QMAKE_CFLAGS += -std=gnu99
+# QMAKE_CFLAGS += -std=gnu11
 
 INCLUDEPATH += ../
 
@@ -46,14 +48,24 @@ SOURCES += ZToolUnitTests.c \
     test_cJSON.c \
     test_lfqueue.c \
     test_ztl_array.c \
+    test_ztl_blocking_queue.c \
+    test_ztl_bufcat.c \
     test_ztl_buffer.c \
     test_ztl_crypt.c \
     test_ztl_dict.c \
+    test_ztl_dstr.c \
+    test_ztl_evtimer.c \
+    test_ztl_hash.c \
+    test_ztl_heap.c \
     test_ztl_linklist.c \
     test_ztl_map.c \
     test_ztl_mempool.c \
+    test_ztl_msg_buffer.c \
     test_ztl_pc.c \
+    test_ztl_ring.c \
     test_ztl_shm.c \
+    test_ztl_table.c \
+    test_ztl_threads.c \
     test_ztl_times.c \
     test_ztl_utils.c \
-    test_ztl_vector
+    test_ztl_vector.c

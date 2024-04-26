@@ -1,8 +1,3 @@
-/*
- * Copyright (C) Yingzhi Zheng.
- * Copyright (C) <zhengyingzhi112@163.com>
- */
-
 #ifndef _ZTL_NETWORK_H_
 #define _ZTL_NETWORK_H_
 
@@ -32,10 +27,12 @@ typedef struct _WSABUF  EIOVEC;
 #include <sys/select.h>
 #include <sys/poll.h>
 #include <sys/epoll.h>
+#include <sys/uio.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <netinet/tcp.h>
+#include <net/if.h>
 #include <netdb.h>
 #include <unistd.h>
 #include <signal.h>
@@ -54,6 +51,8 @@ typedef struct iovec    EIOVEC;
 
 #endif//WIN32
 
+#define IS_VALID_SOCKET(fd)     ((fd) != -1 && (fd) != 0)
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -64,6 +63,7 @@ void net_init();
 void net_cleanup();
 
 /// errno relative
+const char* get_strerror(int no);
 int  get_errno();
 bool is_wouldblock(int nErrno);
 bool is_einterrupt(int nErrno);
@@ -98,7 +98,7 @@ int set_broadcast(sockhandle_t sockfd, bool on);
 /// multicast operations
 int join_multicast(sockhandle_t sockfd, const char* multiip, const char* bindip);
 int leave_multicast(sockhandle_t sockfd, const char* multiip, const char* bindip);
-int set_multicase_interface(sockhandle_t sockfd, const char* bindip);
+int set_multicast_interface(sockhandle_t sockfd, const char* bindip);
 int enable_multicast_loopback(sockhandle_t sockfd, bool enable);
 int set_multicast_ttl(sockhandle_t sockfd, int ttl);
 
@@ -107,8 +107,8 @@ int set_rcv_buffsize(sockhandle_t sockfd, int bufsize);
 int set_snd_buffsize(sockhandle_t sockfd, int bufsize);
 
 /// set sock timeout with milli-second
-int set_rcv_timeout(sockhandle_t sockfd, int timeout);
-int set_snd_timeout(sockhandle_t sockfd, int timeout);
+int set_rcv_timeout(sockhandle_t sockfd, int timeout_ms);
+int set_snd_timeout(sockhandle_t sockfd, int timeout_ms);
 
 /// get local or peer socket's address
 int get_localaddr(sockhandle_t sockfd, struct sockaddr_in* localaddr);
@@ -135,32 +135,42 @@ int tcp_msg_peek(sockhandle_t sockfd, char* buf, int len);
 
 /// accept a new socket descriptor
 sockhandle_t tcp_accept(sockhandle_t listenfd, struct sockaddr_in* fromaddr);
+sockhandle_t tcp_accept2(sockhandle_t listenfd, char fromip[], int sz, uint16_t* port);
 
 /// try detect events, the event fds will put front at sockfds array, and return count
-int poll_read(sockhandle_t sockfds[], int nfds, int timeoutMS);
+int poll_reads(sockhandle_t sockfds[], int nfds, int timeout_ms);
+int poll_read(sockhandle_t sockfd, int timeout_ms);
+
+int poll_writes(sockhandle_t sockfds[], int nfds, int timeout_ms);
+int poll_write(sockhandle_t sockfd, int timeout_ms);
 
 /// send iovec, return send count
 int send_iov(sockhandle_t sockfd, EIOVEC* iovec, int iovec_cnt);
 
 //////////////////////////////////////////////////////////////////////////
 /// connect to server with a blocking socket
-int net_connect(sockhandle_t connfd, const char* ip, uint16_t port);
+int net_connect(sockhandle_t sockfd, const char* ip, uint16_t port);
 
 /// non-block connect to server, timeout is milli-second
-int net_connect_nonb(sockhandle_t connfd, const char* ip, uint16_t port, int timeoutms);
+int net_connect_nonb(sockhandle_t sockfd, const char* ip, uint16_t port, int timeoutms);
 
 /// pass a tcp socket desc and make listening, return 0 if listen success
 int tcp_listen(sockhandle_t listenfd, const char* ip, uint16_t port, bool reuse, int backlog/* = SOMAXCONN*/);
+
+sockhandle_t tcp_listen_ex(const char* bindip, uint16_t port, bool nonblock, bool nodelay);
 
 /// read count bytes from socket
 int tcp_readn(sockhandle_t sockfd, char* buf, int count);
 
 /// make a simple tcp server, if new event, the callback functions will be invoked
-typedef int (*pfonevent)(sockhandle_t fd, int isoutev);
-int tcp_simple_server(sockhandle_t listenfd, pfonevent eventcb);
+typedef int (*pfonevent)(void* udata, sockhandle_t fd, int isoutev);
+int tcp_simple_server(sockhandle_t listenfd, pfonevent eventcb, void* udata);
 
 /// make a tcp echo server
 int tcp_echo_server(const char* listenip, uint16_t listenport);
+
+/// write data
+int net_send(sockhandle_t sockfd, const char* buf, int size, int flag);
 
 /// create a udp receiver, return the udp socket descriptor
 sockhandle_t udp_receiver(const char* localip, uint16_t localport, bool reuseaddr);

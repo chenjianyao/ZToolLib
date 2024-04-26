@@ -7,23 +7,37 @@
 #include <ZToolLib/ztl_common.h>
 #include <ZToolLib/ztl_config.h>
 #include <ZToolLib/ztl_logger.h>
+#include <ZToolLib/ztl_dstr.h>
 #include <ZToolLib/lockfreequeue.h>
 
 #include <ZToolLib/ztl_base64.h>
-
+#include <ZToolLib/ztl_memdb.h>
+#include <ZToolLib/ztl_times.h>
 #include <ZToolLib/ztl_utils.h>
 
+#ifdef _MSC_VER
+#include <Winsock2.h>
 
+#pragma comment(lib, "winmm.lib")
+#endif
+
+
+extern void net_init();
 void test_ztl_config();
 void test_ztl_log();
-
 void test_lfqueue();
-
 void test_base64();
-
 void test_read_file();
-
 void test_char_conv();
+void test_memdb();
+void test_dstr();
+
+extern void tcp_server_demo(int argc, char* argv[]);
+extern void tcp_client_demo(int argc, char* argv[]);
+extern void threadpool_demo(int argc, char* argv[]);
+extern void event_dispatcher_demo(int argc, char* argv[]);
+extern void producer_consumer_demo(int argc, char* argv[]);
+extern void trans_md_demo(int argc, char* argv[]);
 
 
 int main(int argc, char* argv[])
@@ -31,16 +45,35 @@ int main(int argc, char* argv[])
     ZTL_NOTUSED(argc);
     ZTL_NOTUSED(argv);
 
+    net_init();
+
     //test_ztl_config();
     //test_ztl_log();
 
-    //test_lfqueue();
-
-    //test_base64();
-
+    // test_lfqueue();
+    // test_base64();
     // test_read_file();
+    // test_char_conv();
 
-    test_char_conv();
+    // test_memdb();
+    // test_dstr();
+
+    if (argc > 2 && strcmp(argv[1], "server") == 0) {
+        tcp_server_demo(argc, argv);
+        return 0;
+    }
+    else if (argc > 2 && strcmp(argv[1], "client") == 0) {
+        tcp_client_demo(argc, argv);
+        return 0;
+    }
+
+    // tcp_server_demo(argc, argv);
+    // trans_md_demo(argc, argv);
+    return 0;
+
+    threadpool_demo(argc, argv);
+    event_dispatcher_demo(argc, argv);
+    producer_consumer_demo(argc, argv);
 
     return 0;
 }
@@ -115,37 +148,17 @@ void test_base64()
     char lRawString[256] = "";
     uint32_t lBase64Length, lRawLength;
 
-#if 0
-    lpChanged = zpassword_change(lString);
-    lpRaw = zpassword_change(lpChanged);
-
-    assert(strcmp(lpRaw, lString) == 0);
-
-    char lBase64String[256] = "";
-    uint32_t lBase64Length = sizeof(lBase64String) - 1;
-    ztl_base64_encode(lpRaw, strlen(lpRaw), lBase64String, &lBase64Length);
-
-    char lRawString[256] = "";
-    uint32_t lRawLength = sizeof(lRawString) - 1;
-    ztl_base64_decode(lBase64String, lBase64Length, lRawString, &lRawLength);
-
-    assert(strcmp(lRawString, lString) == 0);
-
-    printf("%s\n", lRawString);
-
-#endif
-
     // change and encode
-    lpChanged = zpassword_change(lString);
+    lpChanged = lString;
     lBase64Length = sizeof(lBase64String) - 1;
-    ztl_base64_encode(lpChanged, strlen(lpChanged), lBase64String, &lBase64Length);
+    ztl_base64_encode(lpChanged, (uint32_t)strlen(lpChanged), lBase64String, &lBase64Length);
 
     // decode and change
     char lTemp[256] = "";
     strcpy(lTemp, lBase64String);
     lRawLength = sizeof(lRawString) - 1;
     ztl_base64_decode(lTemp, lBase64Length, lRawString, &lRawLength);
-    lpRaw = zpassword_change(lRawString);
+    lpRaw = lRawString;
 
     assert(strcmp(lpRaw, "111111") == 0);
 }
@@ -190,7 +203,7 @@ static const uint32_t powers_of_10_32[] = {
     UINT32_C(1000000000)
 };
 
-static inline uint32_t to_chars_len(int value)
+static inline uint32_t to_chars_len(uint32_t value)
 {
     // FIXME error
     // const unsigned t = (32 - __builtin_clz(value | 1)) * 1233 >> 12;
@@ -208,3 +221,108 @@ void test_char_conv()
     printf("\n");
 }
 
+
+
+typedef struct sim_tick_s
+{
+    char instrument[8];
+    double last_price;
+    double turnover;
+    int64_t volume;
+}sim_tick_t;
+
+void test_memdb()
+{
+    const char* dbname = "mdb_test.dat";
+    uint32_t dbsize = 32 * 1024 * 1024;
+    int rv;
+    ztl_memdb_t* mdb;
+    mdb = ztl_memdb_create(dbname, dbsize, 4096, 0);
+    rv = ztl_memdb_open(mdb);
+    fprintf(stderr, "ztl_memdb_open rv1:%d\n", rv);
+
+    uint32_t exist_count;
+    exist_count = ztl_memdb_count(mdb);
+    fprintf(stderr, "ztl_memdb_count:%d\n", exist_count);
+
+    ztl_seq_t seq;
+    ztl_entry_t* entry;
+    sim_tick_t* stick;
+    sim_tick_t* rtick;
+
+    ztl_seq_t seqs[1024] = { 0 };
+    uint32_t count = 5;
+    for (uint32_t i = exist_count; i < exist_count + count; ++i)
+    {
+        // write some data here
+        entry = ztl_memdb_alloc_entry(mdb, ztl_align(sizeof(sim_tick_t), 8));
+        stick = (sim_tick_t*)entry;
+        sprintf(stick->instrument, "%06d", i + 1);
+        stick->last_price = 20 + i + i * 0.1;
+        stick->volume = 100 * (i + 1);
+        stick->turnover = stick->last_price * stick->volume;
+        seq = ztl_memdb_direct_append(mdb, entry);
+
+        if (seq != 0) {
+            seqs[i] = seq;
+        }
+    }
+
+    // read
+    for (uint32_t i = 1; i <= exist_count + count; ++i)
+    {
+        // rtick = (sim_tick_t*)ztl_memdb_get_entry(mdb, seqs[i]);
+        rtick = (sim_tick_t*)ztl_memdb_get_entry(mdb, i);
+        if (!rtick)
+        {
+            fprintf(stderr, "11 tick null when read index:%d\n", i);
+            break;
+        }
+        fprintf(stderr, "tick%d instr:%s, price:%.2lf, vol:%lld\n", i, rtick->instrument, rtick->last_price, rtick->volume);
+    }
+
+    ztl_memdb_release(mdb);
+    mdb = NULL;
+
+    // re-open the db
+    mdb = ztl_memdb_create(dbname, dbsize, 4096, 0);
+    rv = ztl_memdb_open(mdb);
+    fprintf(stderr, "ztl_memdb_open rv2:%d\n", rv);
+
+    // check some data here
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        rtick = (sim_tick_t*)ztl_memdb_get_entry(mdb, seqs[i]);
+        if (!rtick)
+        {
+            fprintf(stderr, "22 tick null when read index:%d\n", i);
+            break;
+        }
+        fprintf(stderr, "tick%d instr:%s, price:%.2lf, vol:%lld\n", i, rtick->instrument, rtick->last_price, rtick->volume);
+    }
+
+    ztl_memdb_release(mdb);
+}
+
+void test_dstr()
+{
+    dstr s1;
+    dstr s2;
+    dstr res;
+
+    s1 = dstr_new("hello");
+    printf("s1 len:%zu, data:%s\n", dstr_length(s1), s1);
+
+    s2 = dstr_new_len(NULL, 32);
+    printf("s2 len:%zu, data:%s\n", dstr_length(s2), s2);
+
+    s2 = dstr_cat(s2, "this ");
+    s2 = dstr_cat_len(s2, "game", 2);
+    printf("s2 len:%zu, data:%s\n", dstr_length(s2), s2);
+
+    res = dstr_new("HELLO");
+    res = dstr_cat(res, "|192.168.1.178");
+    res = dstr_cat(res, "|PC");
+    res = dstr_cat(res, "\r\n");
+    printf("res len:%zu, data:%s\n", dstr_length(res), res);
+}

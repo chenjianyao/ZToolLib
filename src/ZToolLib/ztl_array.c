@@ -2,6 +2,7 @@
 #include <stdlib.h>
 
 #include "ztl_array.h"
+#include "ztl_errors.h"
 
 
 int _ztl_array_init(ztl_array_t* array, ztl_pool_t* pool, uint32_t num, size_t eltsize)
@@ -21,8 +22,8 @@ int _ztl_array_init(ztl_array_t* array, ztl_pool_t* pool, uint32_t num, size_t e
     else
         array->elts = malloc(num * eltsize);
 
-    if (array->elts == NULL) {
-        return -1;
+    if (!array->elts) {
+        return ZTL_ERR_AllocFailed;
     }
 
     return 0;
@@ -104,7 +105,7 @@ void ztl_array_clear(ztl_array_t* arr)
 
 bool ztl_array_reserve(ztl_array_t* arr, uint32_t reserve_num)
 {
-    void        *enew;
+    void*       enew;
     size_t      size;
 
     if (reserve_num > arr->nalloc)
@@ -128,7 +129,8 @@ bool ztl_array_reserve(ztl_array_t* arr, uint32_t reserve_num)
                 arr->nalloc++;
 
             }
-            else {
+            else
+            {
                 /* allocate a new array */
 
                 enew = ztl_palloc(pool, reserve_num * arr->eltsize);
@@ -164,66 +166,24 @@ bool ztl_array_push_back(ztl_array_t* arr, void* elem)
         return false;
     }
 
-    switch (arr->eltsize)
-    {
-    case 1:
-        *(uint8_t*)lpaddr = *(uint8_t*)elem;
-        break;
-    case 2:
-        *(uint16_t*)lpaddr = *(uint16_t*)elem;
-        break;
-    case 3:
-        *(uint16_t*)lpaddr = *(uint16_t*)elem;
-        *(uint8_t*)(lpaddr + 2) = *(uint8_t*)((char*)elem + 2);
-        break;
-    case 4:
-        *(uint32_t*)lpaddr = *(uint32_t*)elem;
-        break;
-    case 5:
-        *(uint32_t*)lpaddr = *(uint32_t*)elem;
-        *(uint8_t*)(lpaddr + 4) = *(uint8_t*)((char*)elem + 4);
-        break;
-    case 6:
-        *(uint32_t*)lpaddr = *(uint32_t*)elem;
-        *(uint16_t*)(lpaddr + 4) = *(uint16_t*)((char*)elem + 4);
-        break;
-    case 7:
-        *(uint32_t*)lpaddr = *(uint32_t*)elem;
-        *(uint16_t*)(lpaddr + 4) = *(uint16_t*)((char*)elem + 4);
-        *(uint8_t*)(lpaddr + 6) = *(uint8_t*)((char*)elem + 6);
-        break;
-    case 8:
-        *(uint64_t*)lpaddr = *(uint64_t*)elem;
-        break;
-    case 12:
-        *(uint64_t*)lpaddr = *(uint64_t*)elem;
-        *(uint32_t*)(lpaddr + 8)= *(uint32_t*)((char*)elem + 8);
-        break;
-    case 16:
-        *(uint64_t*)lpaddr = *(uint64_t*)elem;
-        *(uint64_t*)(lpaddr + 8) = *(uint64_t*)((char*)elem + 8);
-        break;
-    default:
-        memcpy(lpaddr, elem, arr->eltsize);
-    }
-
+    fastncpy(lpaddr, elem, arr->eltsize);
     return true;
 }
 
 void* ztl_array_pop_back(ztl_array_t* arr)
 {
-    void* elem = NULL;
+    void* elt = NULL;
     if (arr->nelts > 0) {
         arr->nelts--;
-        elem = (uint8_t*)arr->elts + arr->nelts * arr->eltsize;
+        elt = (uint8_t*)arr->elts + arr->nelts * arr->eltsize;
     }
 
-    return elem;
+    return elt;
 }
 
 void* ztl_array_push(ztl_array_t* arr)
 {
-    void *elt;
+    void* elt;
 
     if (arr->nelts == arr->nalloc) {
 
@@ -243,7 +203,7 @@ void* ztl_array_push(ztl_array_t* arr)
 
 void* ztl_array_push_n(ztl_array_t* arr, uint32_t n)
 {
-    void *elt;
+    void* elt;
 
     if (arr->nelts + n > arr->nalloc) {
 
